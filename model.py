@@ -2,6 +2,7 @@ import numpy as np
 
 class QNetwork:
     def __init__(self, input_size=4, hidden_size=5, output_size=4, learning_rate=0.01):
+
         # 1. The Dimensions
         self.input_size = input_size
         self.hidden_size = hidden_size

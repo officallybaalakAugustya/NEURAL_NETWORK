@@ -3,7 +3,12 @@ class SurvivalEnv:
         pass
     def get_state(self):
         return [0.0, 0.0, 0.0, 0.0]
+    def random_pos(self) :
+        return [0.0, 0.0]
     def step(self, action):
         return [0.0, 0.0, 0.0, 0.0], 0.0, False
     def render(self):
         pass
+    def reset(self):
+        return [0.0, 0.0, 0.0, 0.0]
+    

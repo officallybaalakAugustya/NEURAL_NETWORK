@@ -39,33 +39,42 @@ class SurvivalEnv:
         return [dx_food, dy_food, dx_poison, dy_poison, dist_top, dist_bottom, dist_left, dist_right]
 
     def step(self, action):
+        # Remember where we were before moving
         old_x = self.agent_pos[0]
         old_y = self.agent_pos[1]
 
-        # Move the Agent
-        if action == 0: self.agent_pos[1] -= self.step_size 
-        if action == 1: self.agent_pos[1] += self.step_size 
-        if action == 2: self.agent_pos[0] -= self.step_size 
-        if action == 3: self.agent_pos[0] += self.step_size 
+        # 1. Move the Agent
+        if action == 0: self.agent_pos[1] -= self.step_size # UP
+        if action == 1: self.agent_pos[1] += self.step_size # DOWN
+        if action == 2: self.agent_pos[0] -= self.step_size # LEFT
+        if action == 3: self.agent_pos[0] += self.step_size # RIGHT
 
-        # Enforce Boundaries
+        # 2. Enforce Wall Boundaries
         self.agent_pos[0] = max(0, min(self.width - self.step_size, self.agent_pos[0]))
         self.agent_pos[1] = max(0, min(self.height - self.step_size, self.agent_pos[1]))
         
         self.current_steps += 1 
-        
-        # ==========================================
-        # YOUR BRILLIANT FIX: Movement is free!
-        # ==========================================
         reward = 0.0
         done = False
 
-        # Collision Detection: Walls (Instant Death)
+        # ==========================================
+        # THE FIX: The "Hot and Cold" Breadcrumb Trail
+        # ==========================================
+        # Calculate Manhattan distance to food before and after moving
+        old_dist = abs(self.food_pos[0] - old_x) + abs(self.food_pos[1] - old_y)
+        new_dist = abs(self.food_pos[0] - self.agent_pos[0]) + abs(self.food_pos[1] - self.agent_pos[1])
+
+        if new_dist < old_dist:
+            reward = 0.5   # Warmer! You moved closer.
+        elif new_dist > old_dist:
+            reward = -0.5  # Colder! You moved away.
+
+        # 3. Collision Detection: Walls (Instant Death)
         if self.agent_pos[0] == old_x and self.agent_pos[1] == old_y:
             reward = -10.0  
             done = True     
 
-        # Collision Detection: Food & Poison
+        # 4. Collision Detection: Food & Poison
         elif self.agent_pos == self.food_pos:
             reward = 10.0                  
             self.food_pos = self._random_pos() 
@@ -78,7 +87,7 @@ class SurvivalEnv:
             done = True  
 
         return self.get_state(), reward, done
-
+   
     def render(self):
         if not self.render_mode:
             return

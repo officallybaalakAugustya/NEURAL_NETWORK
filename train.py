@@ -24,10 +24,6 @@ GAMMA: float = 0.99
 EPSILON: float = 1.0
 EPSILON_MIN: float = 0.05
 EPSILON_DECAY: float = 0.997
-<<<<<<< HEAD
- 
-=======
->>>>>>> b79109ffffccae87b6ab995c89403501f2eb320b
 NUM_ACTIONS: int = 4
 
 class ReplayMemory:

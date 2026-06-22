@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-EPISODES: int = 200
+EPISODES: int = 800
 BATCH_SIZE: int = 32
 MEMORY_SIZE: int = 10_000
 
@@ -23,7 +23,7 @@ GAMMA: float = 0.99
 
 EPSILON: float = 1.0
 EPSILON_MIN: float = 0.05
-EPSILON_DECAY: float = 0.995
+EPSILON_DECAY: float = 0.997
 
 NUM_ACTIONS: int = 4
 
@@ -59,7 +59,7 @@ class Trainer:
 
     def __init__(self) -> None:
         self.env = SurvivalEnv()
-        self.model = QNetwork(input_size=8, hidden_size=8, output_size=4)
+        self.model = QNetwork(input_size=8, hidden_size=16, output_size=4)
         self.memory = ReplayMemory(capacity=MEMORY_SIZE)
         self.epsilon: float = EPSILON
         self.reward_history: list[float] = []

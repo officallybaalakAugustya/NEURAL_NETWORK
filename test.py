@@ -13,7 +13,7 @@ def main():
     pygame.init() 
     
     env = SurvivalEnv(render_mode=True)  # Ensure the environment is in render mode
-    model = QNetwork(input_size=8, hidden_size=8, output_size=4)
+    model = QNetwork(input_size=8, hidden_size=16, output_size=4)
     model.load_weights("brain_weights.npy")
     
     state = env.reset() if hasattr(env, 'reset') else env._get_state()

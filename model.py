@@ -66,6 +66,8 @@ class QNetwork:
         # Positive error means we guessed too low. Negative means we guessed too high.
         error = target_q - current_q
 
+        error = np.atleast_2d(error)
+
         # ==========================================
         # 2. OUTPUT LAYER GRADIENTS (W2, b2)
         # ==========================================

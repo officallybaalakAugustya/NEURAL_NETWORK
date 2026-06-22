@@ -78,24 +78,31 @@ class Trainer:
 
     def _train_on_batch(self, experiences: list) -> float:
         total_loss: float = 0.0
-        loss_count: int = 0
 
         for state, action, reward, next_state, done in experiences:
-            if not done:
-                q_next = self.model.forward(next_state)
-                if q_next is not None:
-                    q_next_arr = np.array(q_next, dtype=np.float32)
-                    reward = reward + GAMMA * float(np.max(q_next_arr))
+           # model forward pass to get current Q-values
+            current_q = self.model.forward(state)
+            
+            # Create a copy to act as our target
+            target_q = np.copy(current_q)
+            
+            # 2. The Bellman Equation (Calculate the target)
+            if done:
+                # If the agent died, the reward is final
+                target_q[action] = reward
+            else:
+                # If alive, add the maximum possible future reward
+                next_q = self.model.forward(next_state)
+                target_q[action] = reward + GAMMA * float(np.max(next_q))
 
-            loss_val = self.model.backward(
-                state, action, reward, next_state, done
-            )
+            # 3. math to update the model weights based on the difference between target and current Q-values
+            self.model.backward(target_q, current_q)
 
-            if loss_val is not None:
-                total_loss += float(loss_val)
-                loss_count += 1
+            # 4. Calculate Mean Squared Error for your loss_history logs
+            loss_val = float(np.mean((target_q - current_q) ** 2))
+            total_loss += loss_val
 
-        return total_loss / loss_count if loss_count > 0 else 0.0
+        return total_loss / len(experiences)
 
     def run_episode(self) -> tuple[float, float]:
         state: np.ndarray = np.array(self.env.reset(), dtype=np.float32)
@@ -143,7 +150,9 @@ class Trainer:
             EPSILON_MIN,
             EPSILON_DECAY,
         )
-        logger.info("=" * 60)
+        logger.info("=" * 60)   
+
+        record_score : float = 0.0 
 
         episode: int = 0
         try:
@@ -152,6 +161,12 @@ class Trainer:
 
                 self.reward_history.append(episode_reward)
                 self.loss_history.append(avg_loss)
+                  
+                  # logic to save the model if a new record score is achieved
+                if episode_reward > record_score:
+                    record_score = episode_reward
+                    self._save_model()  # Overwrite the file with the new smartest brain
+                    logger.info(f"🏆 New Record Score: {record_score}! Brain saved.")
 
                 logger.info(
                     "Episode %4d/%d | Reward: %8.2f | Avg Loss: %10.6f | Epsilon: %.4f",
@@ -170,7 +185,7 @@ class Trainer:
             logger.error("Training failed with error: %s", exc, exc_info=True)
             raise
 
-        self._save_model()
+       
         self._save_metrics()
 
         logger.info("=" * 60)

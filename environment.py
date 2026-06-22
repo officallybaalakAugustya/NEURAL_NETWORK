@@ -56,40 +56,46 @@ class SurvivalEnv:
     def step(self, action):
         """
         Executes the AI's chosen action and calculates the consequences.
-        Actions: 0=UP, 1=DOWN, 2=LEFT, 3=RIGHT
         """
+        # --- THE FIX 1: Remember where we were before moving ---
+        old_x = self.agent_pos[0]
+        old_y = self.agent_pos[1]
+
         # 1. Move the Agent
         if action == 0: self.agent_pos[1] -= self.step_size # UP
         if action == 1: self.agent_pos[1] += self.step_size # DOWN
         if action == 2: self.agent_pos[0] -= self.step_size # LEFT
         if action == 3: self.agent_pos[0] += self.step_size # RIGHT
 
-        # 2. Enforce Wall Boundaries (Agent cannot leave the screen)
+        # 2. Enforce Wall Boundaries
         self.agent_pos[0] = max(0, min(self.width - self.step_size, self.agent_pos[0]))
         self.agent_pos[1] = max(0, min(self.height - self.step_size, self.agent_pos[1]))
         
-        self.current_steps += 1 # Tick the clock every move
+        self.current_steps += 1 
         
         # 3. Initialize default feedback
         reward = -0.1
         done = False
 
-        # 4. Collision Detection (The Reward Function)
+        # --- THE FIX 2: Penalize Wall Hits! ---
+        if self.agent_pos[0] == old_x and self.agent_pos[1] == old_y:
+            # The agent tried to move, but the wall blocked it.
+            reward = -5.0  # OUCH! Stop hugging the wall!
+
+        # 4. Collision Detection 
         if self.agent_pos == self.food_pos:
-            reward = 10                  # Positive reinforcement
-            self.food_pos = self._random_pos() # Respawn the food somewhere else
+            reward = 10                  
+            self.food_pos = self._random_pos() 
             
         elif self.agent_pos == self.poison_pos:
-            reward = -10                 # Negative reinforcement
-            done = True                  # The agent dies, episode ends
+            reward = -10                 
+            done = True                  
 
-        # THE TIMEOUT KILL SWITCH
         if self.current_steps >= 500:
-            done = True  # Time is up. Kill the agent.
-
-        # Return the new reality to the Training Loop
+            done = True  
+        
         return self.get_state(), reward, done
-
+    
     def render(self):
         """Draws the current state of the world to the screen."""
         if not self.render_mode:

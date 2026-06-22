@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-EPISODES: int = 1000
+EPISODES: int = 450
 BATCH_SIZE: int = 32
 MEMORY_SIZE: int = 10_000
 
@@ -176,7 +176,7 @@ class Trainer:
                     avg_loss,
                     self.epsilon,
                 )
-
+          
         except KeyboardInterrupt:
             logger.warning(
                 "Training interrupted by user at episode %d.", episode
@@ -185,7 +185,7 @@ class Trainer:
             logger.error("Training failed with error: %s", exc, exc_info=True)
             raise
 
-       
+        self.model.save_weights("brain_weights.npy")
         self._save_metrics()
 
         logger.info("=" * 60)

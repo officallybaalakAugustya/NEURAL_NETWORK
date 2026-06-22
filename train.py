@@ -24,7 +24,7 @@ GAMMA: float = 0.99
 EPSILON: float = 1.0
 EPSILON_MIN: float = 0.05
 EPSILON_DECAY: float = 0.997
-
+ 
 NUM_ACTIONS: int = 4
 
 

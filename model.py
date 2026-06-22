@@ -23,7 +23,7 @@ class QNetwork:
         self.state = None
         self.z1 = None
         self.a1 = None
-        
+     
     
 
 

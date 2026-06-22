@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-EPISODES: int = 450
+EPISODES: int = 200
 BATCH_SIZE: int = 32
 MEMORY_SIZE: int = 10_000
 

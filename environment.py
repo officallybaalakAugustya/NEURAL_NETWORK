@@ -54,10 +54,6 @@ class SurvivalEnv:
         return [dx_food, dy_food, dx_poison, dy_poison, dist_top, dist_bottom, dist_left, dist_right]
 
     def step(self, action):
-        """
-        Executes the AI's chosen action and calculates the consequences.
-        """
-        # --- THE FIX 1: Remember where we were before moving ---
         old_x = self.agent_pos[0]
         old_y = self.agent_pos[1]
 
@@ -72,18 +68,16 @@ class SurvivalEnv:
         self.agent_pos[1] = max(0, min(self.height - self.step_size, self.agent_pos[1]))
         
         self.current_steps += 1 
-        
-        # 3. Initialize default feedback
         reward = -0.1
         done = False
 
-        # --- THE FIX 2: Penalize Wall Hits! ---
+        # 3. Collision Detection: Walls (Instant Death)
         if self.agent_pos[0] == old_x and self.agent_pos[1] == old_y:
-            # The agent tried to move, but the wall blocked it.
-            reward = -5.0  # OUCH! Stop hugging the wall!
+            reward = -10.0  
+            done = True     # End the episode so it can't get stuck
 
-        # 4. Collision Detection 
-        if self.agent_pos == self.food_pos:
+        # 4. Collision Detection: Food & Poison
+        elif self.agent_pos == self.food_pos:
             reward = 10                  
             self.food_pos = self._random_pos() 
             
@@ -93,7 +87,7 @@ class SurvivalEnv:
 
         if self.current_steps >= 500:
             done = True  
-        
+
         return self.get_state(), reward, done
     
     def render(self):

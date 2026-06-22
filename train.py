@@ -59,7 +59,7 @@ class Trainer:
 
     def __init__(self) -> None:
         self.env = SurvivalEnv()
-        self.model = QNetwork()
+        self.model = QNetwork(input_size=8, hidden_size=8, output_size=4)
         self.memory = ReplayMemory(capacity=MEMORY_SIZE)
         self.epsilon: float = EPSILON
         self.reward_history: list[float] = []

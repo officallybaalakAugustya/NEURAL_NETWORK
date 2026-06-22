@@ -1,129 +1,109 @@
 import numpy as np
+import os
 
 class QNetwork:
-    def __init__(self, input_size=4, hidden_size=5, output_size=4, learning_rate=0.01):
-
-        # 1. The Dimensions
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.output_size = output_size
-        self.lr = learning_rate
-
-        # 2. The Weight Matrices (The "Synapses")
-        # We use np.random.uniform to create small random numbers between -1 and 1.
-        # W1 connects the 4 inputs to the 5 hidden neurons (Shape: 4x5)
-        self.W1 = np.random.randn(self.input_size, self.hidden_size)*0.1
+    def __init__(self, input_size=8, hidden_size=16, output_size=4, lr=0.001):
+        self.lr = lr
         
-        # W2 connects the 5 hidden neurons to the 4 output actions (Shape: 5x4)
-        self.W2 = np.random.randn(self.hidden_size, self.output_size)*0.1
+        self.W1 = np.random.randn(input_size, hidden_size) * np.sqrt(2. / input_size)
+        self.b1 = np.zeros((1, hidden_size))
 
-        # 3. Memory for the Backward Pass
-        # We create empty variables here so the network can "remember" its math 
-        # during the forward pass, which we will need later to calculate the errors.
-        self.state = None
-        self.z1 = None
-        self.a1 = None
-        self.b1 = np.zeros((1, self.hidden_size))
-        self.b2 = np.zeros((1, self.output_size))
-    
+        self.W2 = np.random.randn(hidden_size, hidden_size) * np.sqrt(2. / hidden_size)
+        self.b2 = np.zeros((1, hidden_size))
+
+        self.W3 = np.random.randn(hidden_size, output_size) * np.sqrt(2. / hidden_size)
+        self.b3 = np.zeros((1, output_size))
+
+        # Adam Optimizer Initialization
+        self.beta1 = 0.9    
+        self.beta2 = 0.999  
+        self.epsilon = 1e-8 
+        self.t = 0          
+        
+        self.m_W1, self.v_W1 = np.zeros_like(self.W1), np.zeros_like(self.W1)
+        self.m_b1, self.v_b1 = np.zeros_like(self.b1), np.zeros_like(self.b1)
+        self.m_W2, self.v_W2 = np.zeros_like(self.W2), np.zeros_like(self.W2)
+        self.m_b2, self.v_b2 = np.zeros_like(self.b2), np.zeros_like(self.b2)
+        self.m_W3, self.v_W3 = np.zeros_like(self.W3), np.zeros_like(self.W3)
+        self.m_b3, self.v_b3 = np.zeros_like(self.b3), np.zeros_like(self.b3)
+
+    # THE FIX: Leaky ReLU prevents Dead Neurons from the -10 penalties
+    def leaky_relu(self, z, alpha=0.01):
+        return np.where(z > 0, z, z * alpha)
+
+    def leaky_relu_deriv(self, z, alpha=0.01):
+        return np.where(z > 0, 1.0, alpha)
+
     def forward(self, state):
-        """
-        This is the forward pass which outputs the Q-value prediction for the given state , 
-        input will be the 1 D array from the environment and output will be the 1 D array of Q values for each action. 
-        """
-        # 1. THE SHAPE TRAP: 
-        # Forces a 1D array from SurvivalEnv into a 2D array [1, input_size].
-        # If train.py sends a batch [32, input_size], it leaves it perfectly alone.
-        self.state = np.atleast_2d(state).astype(np.float32)
+        self.state = np.atleast_2d(state)
         
-        # 2. HIDDEN LAYER: Linear Transformation
-        # Z1 = (State • W1) + b1 
         self.z1 = np.dot(self.state, self.W1) + self.b1
-        
-        # 3. ACTIVATION: Hyperbolic Tangent (tanh)
-        # Adds non-linearity, squishing values between -1 and 1
-        self.a1 = np.tanh(self.z1)
-        
-        # 4. OUTPUT LAYER: Raw Q-Values
-        # Z2 = (A1 • W2) + b2
+        self.a1 = self.leaky_relu(self.z1)
+
         self.z2 = np.dot(self.a1, self.W2) + self.b2
+        self.a2 = self.leaky_relu(self.z2)
+
+        # Linear Output Layer (Can output negative Q-values safely)
+        self.q_values = np.dot(self.a2, self.W3) + self.b3
+        return self.q_values
+
+    def _adam_update(self, param, m, v, grad):
+        m = self.beta1 * m + (1 - self.beta1) * grad
+        v = self.beta2 * v + (1 - self.beta2) * (grad ** 2)
         
-        # 5. ALIGNMENT RETURN:
-        # If train.py is just asking for a single move (gameplay), flatten it 
-        # so np.argmax() works cleanly without shape errors.
-        if self.state.shape[0] == 1:
-            return self.z2[0]
-            
-        # If train.py sent a batch of 32 states for learning, return the 2D matrix.
-        return self.z2
-    
+        m_hat = m / (1 - self.beta1 ** self.t)
+        v_hat = v / (1 - self.beta2 ** self.t)
+        
+        param -= self.lr * m_hat / (np.sqrt(v_hat) + self.epsilon)
+        return param, m, v
+
     def backward(self, target_q, current_q):
-        """
-        Executes Backpropagation using the Chain Rule to calculate gradients,
-        clips them for stability, and updates the weights.
-        """
-        # 1. Calculate the Raw Error
-        # Positive error means we guessed too low. Negative means we guessed too high.
-        error = target_q - current_q
-
-        error = np.atleast_2d(error)
-
-        # ==========================================
-        # 2. OUTPUT LAYER GRADIENTS (W2, b2)
-        # ==========================================
-        # Since our output layer has no activation function (it is purely linear), 
-        # the derivative of Z2 is just the error itself.
-        dZ2 = error
+        self.t += 1 
         
-        # dW2 = Transpose(A1) • dZ2
-        dW2 = np.dot(self.a1.T, dZ2)
-        # db2 = Sum of dZ2 across the batch
-        db2 = np.sum(dZ2, axis=0, keepdims=True)
+        delta3 = current_q - target_q
+        dW3 = np.dot(self.a2.T, delta3)
+        db3 = np.sum(delta3, axis=0, keepdims=True)
 
-        # ==========================================
-        # 3. HIDDEN LAYER GRADIENTS (W1, b1)
-        # ==========================================
-        # Push the error backward through W2
-        dA1 = np.dot(dZ2, self.W2.T)
+        delta2 = np.dot(delta3, self.W3.T) * self.leaky_relu_deriv(self.z2)
+        dW2 = np.dot(self.a1.T, delta2)
+        db2 = np.sum(delta2, axis=0, keepdims=True)
+
+        delta1 = np.dot(delta2, self.W2.T) * self.leaky_relu_deriv(self.z1)
+        dW1 = np.dot(self.state.T, delta1)
+        db1 = np.sum(delta1, axis=0, keepdims=True)
+
+        clip_value = 1.0
+        for grad in [dW1, db1, dW2, db2, dW3, db3]:
+            np.clip(grad, -clip_value, clip_value, out=grad)
+
+        self.W3, self.m_W3, self.v_W3 = self._adam_update(self.W3, self.m_W3, self.v_W3, dW3)
+        self.b3, self.m_b3, self.v_b3 = self._adam_update(self.b3, self.m_b3, self.v_b3, db3)
         
-        # Derivative of tanh activation: dZ1 = dA1 * (1 - A1^2)
-        dZ1 = dA1 * (1.0 - np.power(self.a1, 2))
+        self.W2, self.m_W2, self.v_W2 = self._adam_update(self.W2, self.m_W2, self.v_W2, dW2)
+        self.b2, self.m_b2, self.v_b2 = self._adam_update(self.b2, self.m_b2, self.v_b2, db2)
         
-        # dW1 = Transpose(State) • dZ1
-        dW1 = np.dot(self.state.T, dZ1)
-        # db1 = Sum of dZ1 across the batch
-        db1 = np.sum(dZ1, axis=0, keepdims=True)
+        self.W1, self.m_W1, self.v_W1 = self._adam_update(self.W1, self.m_W1, self.v_W1, dW1)
+        self.b1, self.m_b1, self.v_b1 = self._adam_update(self.b1, self.m_b1, self.v_b1, db1)
 
-        # ==========================================
-        # 4. GRADIENT CLIPPING (The Safety Net)
-        # ==========================================
-        # Prevents the "Exploding Gradient" problem inherent in Q-Learning
-        dW2 = np.clip(dW2, -1.0, 1.0)
-        db2 = np.clip(db2, -1.0, 1.0)
-        dW1 = np.clip(dW1, -1.0, 1.0)
-        db1 = np.clip(db1, -1.0, 1.0)
-
-        # ==========================================
-        # 5. THE OPTIMIZER (Vanilla Gradient Descent)
-        # ==========================================
-        # We use += because our error formula was (Target - Current)
-        self.W1 += self.lr * dW1
-        self.b1 += self.lr * db1
-        self.W2 += self.lr * dW2
-        self.b2 += self.lr * db2
-    
     def save_weights(self, filename="brain_weights.npy"):
-        """Saves the matrices to the hard drive so the AI doesn't lose its memory."""
-        with open(filename, 'wb') as f:
-            np.save(f, self.W1)
-            np.save(f, self.b1)
-            np.save(f, self.W2)
-            np.save(f, self.b2)
+        try:
+            np.save(filename, {'W1': self.W1, 'b1': self.b1, 'W2': self.W2, 'b2': self.b2, 'W3': self.W3, 'b3': self.b3})
+        except Exception as e:
+            print("Could not save weights:", e)
 
+    # THE FIX: Added the load_weights function for testing tomorrow
     def load_weights(self, filename="brain_weights.npy"):
-        """Loads the matrices for test.py to use for the presentation video."""
-        with open(filename, 'rb') as f:
-            self.W1 = np.load(f)
-            self.b1 = np.load(f)
-            self.W2 = np.load(f)
-            self.b2 = np.load(f)
+        if os.path.exists(filename):
+            try:
+                data = np.load(filename, allow_pickle=True).item()
+                self.W1 = data['W1']
+                self.b1 = data['b1']
+                self.W2 = data['W2']
+                self.b2 = data['b2']
+                self.W3 = data['W3']
+                self.b3 = data['b3']
+                print("Brain successfully loaded.")
+            except Exception as e:
+                print("Error loading brain:", e)
+        else:
+            print("No saved brain found. Starting with a fresh brain.")
